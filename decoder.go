@@ -43,6 +43,12 @@ func (d *Decoder) ZeroEmpty(z bool) {
 	d.zeroEmpty = z
 }
 
+// DefaultLocation sets the default location to look for params.
+// It is only applied if a field does not have location tags.
+func (d *Decoder) DefaultLocation(l int) {
+	d.cache.defaultLocation = l
+}
+
 // IgnoreUnknownKeys controls the behaviour when the decoder encounters unknown
 // keys in the map.
 // If i is true and an unknown field is encountered, it is ignored. This is
