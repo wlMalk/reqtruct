@@ -19,9 +19,10 @@ var invalidPath = errors.New("invalid path")
 // newCache returns a new cache.
 func newCache() *cache {
 	c := cache{
-		m:       make(map[reflect.Type]*structInfo),
-		regconv: make(map[reflect.Type]Converter),
-		sep:     '.',
+		m:               make(map[reflect.Type]*structInfo),
+		regconv:         make(map[reflect.Type]Converter),
+		sep:             '.',
+		defaultLocation: LocationJSON,
 	}
 	return &c
 }
@@ -35,6 +36,8 @@ type cache struct {
 	sepLeft  rune
 	sepRight rune
 	sep      rune
+
+	defaultLocation int
 }
 
 // registerConverter registers a converter function for a custom type.
@@ -223,7 +226,7 @@ func (c *cache) create(t reflect.Type, parentAlias string, parentLocations []int
 	info := &structInfo{}
 	var anonymousInfos []*structInfo
 	for i := 0; i < t.NumField(); i++ {
-		if f := c.createField(t.Field(i), parentAlias, parentLocations); f != nil {
+		if f := c.createField(t.Field(i), parentAlias, parentLocations, hasFiles(t)); f != nil {
 			info.fields = append(info.fields, f)
 			if ft := indirectType(f.typ); ft.Kind() == reflect.Struct && f.isAnonymous {
 				anonymousInfos = append(anonymousInfos, c.create(ft, f.canonicalAlias, f.locations))
@@ -252,8 +255,8 @@ func (c *cache) create(t reflect.Type, parentAlias string, parentLocations []int
 }
 
 // createField creates a fieldInfo for the given field.
-func (c *cache) createField(field reflect.StructField, parentAlias string, parentLocations []int) *fieldInfo {
-	alias, locations, locationsDefined := fieldAlias(field, parentLocations)
+func (c *cache) createField(field reflect.StructField, parentAlias string, parentLocations []int, parentContainsFiles bool) *fieldInfo {
+	alias, locations, locationsDefined := c.fieldAlias(field, parentLocations, parentContainsFiles)
 	if alias == "-" {
 		// Ignore this field.
 		return nil
@@ -368,7 +371,7 @@ func (c *cache) containsLocation(fields []*fieldInfo, location int) bool {
 		c.l.RLock()
 		s := c.m[t]
 		c.l.RUnlock()
-		if s != nil && (s.containsFile || c.containsLocation(s.fields, location)) {
+		if s != nil && c.containsLocation(s.fields, location) {
 			return true
 		}
 	}
@@ -474,7 +477,7 @@ func locationsToNames(locations []int) (names []string) {
 	return
 }
 
-func fieldAlias(field reflect.StructField, parentLocations []int) (alias string, locations []int, locationsDefined bool) {
+func (c *cache) fieldAlias(field reflect.StructField, parentLocations []int, parentContainsFiles bool) (alias string, locations []int, locationsDefined bool) {
 
 	jsonAllowed := true
 	locationsDefined = true
@@ -522,6 +525,19 @@ func fieldAlias(field reflect.StructField, parentLocations []int) (alias string,
 		} else if tag != "-" && len(parentLocations) > 0 {
 			alias = field.Name
 			locations = parentLocations
+		} else if tag != "-" && isFileType(underlyingElem(field.Type)) {
+			alias = field.Name
+			locations = []int{LocationFile}
+		} else if tag != "-" && parentContainsFiles {
+			alias = field.Name
+			locations = []int{LocationForm}
+		} else if tag != "-" && c.defaultLocation != locationNone {
+			if c.defaultLocation == LocationJSON && !jsonAllowed {
+				return "-", nil, false
+			}
+			alias = field.Name
+			locations = []int{c.defaultLocation}
+			locationsDefined = false
 		} else if tag != "-" && jsonAllowed {
 			alias = field.Name
 			locations = []int{LocationJSON}
@@ -541,4 +557,50 @@ func fieldAlias(field reflect.StructField, parentLocations []int) (alias string,
 func parseTag(tag string) string {
 	s := strings.Split(tag, ",")
 	return s[0]
+}
+
+func hasFiles(t reflect.Type) bool {
+	t = underlyingElem(t)
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+	for i := 0; i < t.NumField(); i++ {
+		f := underlyingElem(t.Field(i).Type)
+		if isFileType(f) {
+			return true
+		}
+		if f.Kind() == reflect.Struct && hasFiles(f) {
+			return true
+		}
+	}
+	return false
+}
+
+func isFileType(t reflect.Type) bool {
+	if isFile(t) {
+		return true
+	}
+	if isFileHeader(t) {
+		return true
+	}
+	return false
+}
+
+func underlyingElem(t reflect.Type) reflect.Type {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() == reflect.Slice {
+		t = t.Elem()
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+	}
+	if t.Kind() == reflect.Array {
+		t = t.Elem()
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+	}
+	return t
 }

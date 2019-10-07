@@ -264,7 +264,6 @@ func (d *Decoder) decode(v reflect.Value, path string, parts []pathPart, values 
 		if isFileHeadersPtrs(t) {
 			v.Set(reflect.ValueOf(fs))
 		} else if isFileHeaderPtr(t) {
-			fmt.Println(44)
 			v.Set(reflect.ValueOf(fs[0]))
 		} else if isFileHeaders(t) {
 			var files []multipart.FileHeader
@@ -295,6 +294,12 @@ func (d *Decoder) decode(v reflect.Value, path string, parts []pathPart, values 
 				return err
 			}
 			v.Set(reflect.ValueOf(file))
+		} else {
+			return ConversionError{
+				Key:   path,
+				Type:  t,
+				Index: -1,
+			}
 		}
 	} else if len(values) > 0 {
 		conv := d.cache.converter(t)

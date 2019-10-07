@@ -55,8 +55,6 @@ func (d *Decoder) DefaultLocation(l int) {
 // similar to how unknown keys are handled by encoding/json.
 // If i is false then Decode will return an error. Note that any valid keys
 // will still be decoded in to the target struct.
-//
-// To preserve backwards compatibility, the default value is false.
 func (d *Decoder) IgnoreUnknownKeys(i bool) {
 	d.ignoreUnknownKeys = i
 }
