@@ -70,6 +70,11 @@ func (d *Decoder) PathExtractor(p func(r *http.Request) map[string]string) {
 	d.pathExtractor = p
 }
 
+// NameFunc allows settings a special function for getting fields aliases
+func (d *Decoder) NameFunc(n func(field string, locations []int) string) {
+	d.cache.nameFunc = n
+}
+
 // Separator defines runes to be used as separators.
 // If given '[', ']', '.' for example, then paths should be like a[b].[0].[c]
 // This is provided to make it possible to accept serialized objects from jQuery for example.

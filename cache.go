@@ -38,6 +38,7 @@ type cache struct {
 	sep      rune
 
 	defaultLocation int
+	nameFunc        func(string, []int) string
 }
 
 // registerConverter registers a converter function for a custom type.
@@ -477,6 +478,13 @@ func locationsToNames(locations []int) (names []string) {
 	return
 }
 
+func (c *cache) getAlias(name string, locations []int) string {
+	if c.nameFunc != nil {
+		return c.nameFunc(name, locations)
+	}
+	return name
+}
+
 func (c *cache) fieldAlias(field reflect.StructField, parentLocations []int, parentContainsFiles bool) (alias string, locations []int, locationsDefined bool) {
 
 	jsonAllowed := true
@@ -496,10 +504,6 @@ func (c *cache) fieldAlias(field reflect.StructField, parentLocations []int, par
 
 	if alias == "" {
 		if tag, lTag := field.Tag.Get(nameTag), field.Tag.Get(fromTag); tag != "-" && lTag != "" {
-			if tag == "" {
-				tag = field.Name
-			}
-			alias = tag
 			locs := strings.Split(lTag, ",")
 			if len(locs) == 0 && len(parentLocations) > 0 {
 				locations = parentLocations
@@ -516,32 +520,31 @@ func (c *cache) fieldAlias(field reflect.StructField, parentLocations []int, par
 			} else if len(locations) == 0 {
 				locations = parentLocations
 			}
-		} else if tag != "" && tag != "-" && lTag == "" {
+			if tag == "" {
+				tag = c.getAlias(field.Name, locations)
+			}
 			alias = tag
-			if jsonAllowed {
+		} else if tag != "-" && lTag == "" {
+			if len(parentLocations) > 0 {
+				locations = parentLocations
+			} else if isFileType(underlyingElem(field.Type)) {
+				locations = []int{LocationFile}
+			} else if parentContainsFiles {
+				locations = []int{LocationForm}
+			} else if c.defaultLocation != locationNone {
+				if c.defaultLocation == LocationJSON && !jsonAllowed {
+					return "-", nil, false
+				}
+				locations = []int{c.defaultLocation}
+				locationsDefined = false
+			} else if jsonAllowed {
 				locations = []int{LocationJSON}
 				locationsDefined = false
 			}
-		} else if tag != "-" && len(parentLocations) > 0 {
-			alias = field.Name
-			locations = parentLocations
-		} else if tag != "-" && isFileType(underlyingElem(field.Type)) {
-			alias = field.Name
-			locations = []int{LocationFile}
-		} else if tag != "-" && parentContainsFiles {
-			alias = field.Name
-			locations = []int{LocationForm}
-		} else if tag != "-" && c.defaultLocation != locationNone {
-			if c.defaultLocation == LocationJSON && !jsonAllowed {
-				return "-", nil, false
+			if tag == "" {
+				tag = c.getAlias(field.Name, locations)
 			}
-			alias = field.Name
-			locations = []int{c.defaultLocation}
-			locationsDefined = false
-		} else if tag != "-" && jsonAllowed {
-			alias = field.Name
-			locations = []int{LocationJSON}
-			locationsDefined = false
+			alias = tag
 		} else if tag == "-" {
 			return "-", nil, false
 		}
