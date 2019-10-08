@@ -150,7 +150,7 @@ func (d *Decoder) Decode(dst interface{}, r *http.Request) error {
 }
 
 func isMultipartForm(r *http.Request) bool {
-	return strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data;")
+	return strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data")
 }
 
 func isURLEncodedForm(r *http.Request) bool {

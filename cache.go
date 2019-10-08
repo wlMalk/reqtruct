@@ -504,7 +504,7 @@ func (c *cache) fieldAlias(field reflect.StructField, parentLocations []int, par
 
 	if alias == "" {
 		if tag, lTag := field.Tag.Get(nameTag), field.Tag.Get(fromTag); tag != "-" && lTag != "" {
-			locs := strings.Split(lTag, ",")
+			locs := clean(strings.Split(lTag, ","))
 			if len(locs) == 0 && len(parentLocations) > 0 {
 				locations = parentLocations
 			} else if len(locs) > 0 {
@@ -606,4 +606,11 @@ func underlyingElem(t reflect.Type) reflect.Type {
 		}
 	}
 	return t
+}
+
+func clean(s []string) []string {
+	for i := range s {
+		s[i] = strings.TrimSpace(s[i])
+	}
+	return s
 }
